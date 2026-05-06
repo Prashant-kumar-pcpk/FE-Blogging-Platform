@@ -6,6 +6,13 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 In the project directory, you can run:
 
+## Environment Variables
+
+Create a `.env.development` file and add:
+
+REACT_APP_API_URL=your_api_url
+PORT=3000
+
 ### `npm start`
 
 Runs the app in the development mode.\
