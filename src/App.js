@@ -31,7 +31,7 @@ function App() {
         <Router>
           <div className="min-h-screen bg-gradient-to-br from-purple-600 via-yellow-200 to-violet-800 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
             <Header />
-            <main className="container mx-auto px-4 py-8">
+            <main className="container mx-auto px-8 py-8">
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
