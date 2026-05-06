@@ -237,9 +237,9 @@ const PostDetail = () => {
       case 'whatsapp':
         shareUrl = `https://wa.me/?text=${encodeURIComponent(`${title} ${url}`)}`;
         break;
-      case 'copy':
-        navigator.clipboard.writeText(url);
-        alert('Link copied to clipboard!');
+      case 'email':
+        shareUrl = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${text}\n\nRead more: ${url}`)}`;
+        window.location.href = shareUrl;
         return;
       default:
         return;
@@ -465,10 +465,10 @@ const PostDetail = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="w-12 h-12 bg-gray-300 rounded-full mr-4"></div>
-            <div>
+            <div className="">
               <Link
                 to={`/profile/${post.author.username}`}
-                className="font-medium text-gray-900 hover:text-blue-600"
+                className="font-medium  text-gray-900 hover:text-blue-600"
               >
                 {post.author.username}
               </Link>
@@ -553,12 +553,12 @@ const PostDetail = () => {
                 </svg>
               </button>
               <button
-                onClick={() => handleShare('copy')}
+                onClick={() => handleShare('email')}
                 className="w-8 h-8 bg-gray-500 text-white rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
-                title="Copy Link"
+                title="Share by Email"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-16 9h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2z" />
                 </svg>
               </button>
             </div>

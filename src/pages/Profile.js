@@ -20,6 +20,40 @@ const CATEGORY_FORM_INITIAL_STATE = {
   icon: '📝'
 };
 
+const CONNECTION_MODAL_TITLES = {
+  followers: 'Followers',
+  following: 'Following',
+  subscriptions: 'Subscriptions'
+};
+
+const normalizeUserList = (list = []) =>
+  Array.isArray(list)
+    ? list
+        .map((item) => {
+          if (!item) return null;
+          if (typeof item === 'string') {
+            return { _id: item, username: 'Unknown user', profilePicture: '' };
+          }
+
+          return item;
+        })
+        .filter(Boolean)
+    : [];
+
+const normalizeSubscriptionList = (list = []) =>
+  Array.isArray(list)
+    ? list
+        .map((item) => {
+          if (!item) return null;
+          if (typeof item === 'string') {
+            return { _id: item, name: 'Unnamed category', slug: '', color: '#3B82F6' };
+          }
+
+          return item;
+        })
+        .filter(Boolean)
+    : [];
+
 const Profile = () => {
   const { user: currentUser, isAuthenticated, updateProfile } = useAuth();
   const { username } = useParams();
@@ -41,11 +75,13 @@ const Profile = () => {
   const [formData, setFormData] = useState(PROFILE_FORM_INITIAL_STATE);
   const [categoryForm, setCategoryForm] = useState(CATEGORY_FORM_INITIAL_STATE);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [activeConnectionList, setActiveConnectionList] = useState(null);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     const fetchProfile = async () => {
+      setActiveConnectionList(null);
       setLoading(true);
       setError('');
       setSuccessMessage('');
@@ -125,14 +161,35 @@ const Profile = () => {
         setIsFollowing(false);
         setUser((prev) => ({
           ...prev,
-          followers: prev.followers ? prev.followers.filter((follower) => follower.toString() !== currentUser._id.toString()) : []
+          followers: prev.followers
+            ? prev.followers.filter((follower) => {
+                if (!follower) return false;
+                if (typeof follower === 'string') return follower !== currentUser._id.toString();
+                return follower._id?.toString() !== currentUser._id.toString();
+              })
+            : []
         }));
       } else {
         await authAPI.followUser(user._id);
         setIsFollowing(true);
         setUser((prev) => ({
           ...prev,
-          followers: prev.followers ? [...prev.followers, currentUser._id] : [currentUser._id]
+          followers: prev.followers
+            ? [
+                ...prev.followers,
+                {
+                  _id: currentUser._id,
+                  username: currentUser.username,
+                  profilePicture: currentUser.profilePicture || ''
+                }
+              ]
+            : [
+                {
+                  _id: currentUser._id,
+                  username: currentUser.username,
+                  profilePicture: currentUser.profilePicture || ''
+                }
+              ]
         }));
       }
     } catch (err) {
@@ -322,6 +379,93 @@ const Profile = () => {
     }
   };
 
+  const followerList = normalizeUserList(user?.followers);
+  const followingList = normalizeUserList(user?.following);
+  const subscriptionList = normalizeSubscriptionList(user?.subscribedCategories);
+
+  const connectionCounts = {
+    followers: followerList.length,
+    following: followingList.length,
+    subscriptions: subscriptionList.length
+  };
+
+  const renderConnectionList = () => {
+    if (activeConnectionList === 'subscriptions') {
+      if (subscriptionList.length === 0) {
+        return <p className="text-sm text-gray-600">No subscriptions to show yet.</p>;
+      }
+
+      return (
+        <div className="space-y-3">
+          {subscriptionList.map((category) => (
+            <Link
+              key={category._id}
+              to={category.slug ? `/category/${category.slug}` : '/profile'}
+              onClick={() => setActiveConnectionList(null)}
+              className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3 transition-colors hover:border-blue-200 hover:bg-blue-50"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-10 w-10 rounded-full"
+                  style={{ backgroundColor: category.color || '#3B82F6' }}
+                />
+                <div>
+                  <p className="font-medium text-gray-900">{category.name || 'Unnamed category'}</p>
+                  <p className="text-sm text-gray-500">Subscribed category</p>
+                </div>
+              </div>
+              <span className="text-sm font-medium text-blue-600">View</span>
+            </Link>
+          ))}
+        </div>
+      );
+    }
+
+    const selectedList = activeConnectionList === 'following' ? followingList : followerList;
+
+    if (selectedList.length === 0) {
+      return (
+        <p className="text-sm text-gray-600">
+          No {activeConnectionList === 'following' ? 'following users' : 'followers'} to show yet.
+        </p>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {selectedList.map((person) => (
+          <Link
+            key={person._id}
+            to={person.username && person.username !== 'Unknown user' ? `/profile/${person.username}` : '/profile'}
+            onClick={() => setActiveConnectionList(null)}
+            className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3 transition-colors hover:border-blue-200 hover:bg-blue-50"
+          >
+            <div className="flex items-center gap-3">
+              {person.profilePicture ? (
+                <img
+                  src={person.profilePicture}
+                  alt={person.username}
+                  className="h-11 w-11 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white">
+                  {person.username?.charAt(0)?.toUpperCase() || '?'}
+                </div>
+              )}
+              <div>
+                <p className="font-medium text-gray-900">{person.username || 'Unknown user'}</p>
+                <p className="text-sm text-gray-500">
+                  {activeConnectionList === 'following' ? 'Following' : 'Follower'}
+                </p>
+              </div>
+            </div>
+            <span className="text-sm font-medium text-blue-600">View Profile</span>
+          </Link>
+        ))}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -366,8 +510,27 @@ const Profile = () => {
               <h1 className="text-3xl font-bold text-gray-900 mb-2">{user.username}</h1>
               <p className="text-gray-600 mb-4">{user.bio || 'No bio added yet.'}</p>
               <div className="flex flex-wrap items-center gap-5 text-sm text-gray-600">
-                <span>{user.followers?.length || 0} followers</span>
-                <span>{user.following?.length || 0} following</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveConnectionList('followers')}
+                  className="font-medium transition-colors hover:text-blue-600"
+                >
+                  {connectionCounts.followers} followers
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveConnectionList('following')}
+                  className="font-medium transition-colors hover:text-blue-600"
+                >
+                  {connectionCounts.following} following
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveConnectionList('subscriptions')}
+                  className="font-medium transition-colors hover:text-blue-600"
+                >
+                  {connectionCounts.subscriptions} subscriptions
+                </button>
                 <span>{posts.length} posts</span>
                 <span>
                   Joined{' '}
@@ -851,6 +1014,33 @@ const Profile = () => {
           </div>
         )}
       </div>
+
+      {activeConnectionList && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {CONNECTION_MODAL_TITLES[activeConnectionList]}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {connectionCounts[activeConnectionList]} total
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveConnectionList(null)}
+                className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto p-6">
+              {renderConnectionList()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

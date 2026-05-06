@@ -3,15 +3,55 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { postsAPI, authAPI } from '../API/api';
 import { useAuth } from '../context/AuthContext';
 
+const MAX_SEARCHABLE_POSTS = 1000;
+
+const matchesSearchTerm = (value, query) =>
+  typeof value === 'string' && value.toLowerCase().includes(query.toLowerCase());
+
+const buildAuthorsFromPosts = (postList = []) => {
+  const authorsMap = new Map();
+
+  postList.forEach((post) => {
+    if (!post?.author?._id) return;
+
+    const authorId = post.author._id;
+    const existingAuthor = authorsMap.get(authorId);
+
+    if (existingAuthor) {
+      existingAuthor.postCount += 1;
+      existingAuthor.viewsCount += post.views || 0;
+      return;
+    }
+
+    authorsMap.set(authorId, {
+      _id: authorId,
+      username: post.author.username || 'Unknown',
+      profilePicture: post.author.profilePicture || '',
+      postCount: 1,
+      viewsCount: post.views || 0
+    });
+  });
+
+  return Array.from(authorsMap.values()).sort((firstAuthor, secondAuthor) =>
+    secondAuthor.postCount - firstAuthor.postCount
+  );
+};
+
 const Home = () => {
   const { user, isAuthenticated } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [posts, setPosts] = useState([]);
+  const [searchablePosts, setSearchablePosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState([]);
   const [tags, setTags] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [searchMetaResults, setSearchMetaResults] = useState({
+    authors: [],
+    categories: [],
+    tags: []
+  });
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -29,21 +69,31 @@ const Home = () => {
   }, [currentPage, selectedCategory, selectedTag]);
 
   useEffect(() => {
+    fetchSearchablePosts();
+  }, []);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       const trimmed = searchTerm.trim();
       if (trimmed) {
-        performSearch(trimmed, selectedCategory, selectedTag);
+        performSearch(trimmed, selectedCategory, selectedTag, searchablePosts, categories, tags);
       } else {
         setSearchResults([]);
+        setSearchMetaResults({ authors: [], categories: [], tags: [] });
         setSearchError('');
       }
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedCategory, selectedTag]);
+  }, [searchTerm, selectedCategory, selectedTag, searchablePosts, categories, tags]);
 
   const displayedPosts = searchTerm.trim() ? searchResults : posts;
   const isSearching = searchTerm.trim().length > 0;
+  const searchAuthors = searchMetaResults.authors || [];
+  const searchCategories = searchMetaResults.categories || [];
+  const searchTags = searchMetaResults.tags || [];
+  const hasSupplementarySearchResults =
+    searchAuthors.length > 0 || searchCategories.length > 0 || searchTags.length > 0;
 
   const trendingCategories = [...categories]
     .sort((a, b) => (b.postCount || 0) - (a.postCount || 0))
@@ -115,7 +165,7 @@ const Home = () => {
     setSearchTerm(e.target.value);
   };
 
-  const performSearch = async (query, category, tag) => {
+  const performSearch = async (query, category, tag, availablePosts, availableCategories, availableTags) => {
     setSearchError('');
     setSearchLoading(true);
 
@@ -124,9 +174,31 @@ const Home = () => {
         ...(category ? { category } : {}),
         ...(tag ? { tag } : {})
       });
-      setSearchResults(res.data.posts || res.data);
+
+      const matchedPosts = res.data.posts || res.data || [];
+      const normalizedQuery = query.toLowerCase();
+      const authorResults = buildAuthorsFromPosts(availablePosts).filter((author) =>
+        matchesSearchTerm(author.username, normalizedQuery)
+      );
+      const categoryResults = availableCategories.filter((item) =>
+        matchesSearchTerm(item.name, normalizedQuery)
+        || matchesSearchTerm(item.description, normalizedQuery)
+        || matchesSearchTerm(item.slug, normalizedQuery)
+      );
+      const tagResults = availableTags.filter((item) =>
+        matchesSearchTerm(item.name, normalizedQuery)
+        || matchesSearchTerm(item.slug, normalizedQuery)
+      );
+
+      setSearchResults(matchedPosts);
+      setSearchMetaResults({
+        authors: authorResults.slice(0, 6),
+        categories: categoryResults.slice(0, 6),
+        tags: tagResults.slice(0, 10)
+      });
     } catch (error) {
       setSearchError(error.message || 'Search failed.');
+      setSearchMetaResults({ authors: [], categories: [], tags: [] });
       console.error('Search failed:', error);
     } finally {
       setSearchLoading(false);
@@ -147,6 +219,15 @@ const Home = () => {
       console.error('Failed to fetch posts:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSearchablePosts = async () => {
+    try {
+      const res = await postsAPI.getAllPosts(1, MAX_SEARCHABLE_POSTS);
+      setSearchablePosts(res.data.posts || res.data || []);
+    } catch (error) {
+      console.error('Failed to fetch searchable posts:', error);
     }
   };
 
@@ -194,6 +275,13 @@ const Home = () => {
   const clearFilters = () => {
     setCurrentPage(1);
     setSearchParams({});
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setSearchResults([]);
+    setSearchMetaResults({ authors: [], categories: [], tags: [] });
+    setSearchError('');
   };
 
   const handleLike = async (postSlug) => {
@@ -421,7 +509,20 @@ const Home = () => {
 
       {/* Featured Posts */}
       <section>
-        <h2 className="text-3xl font-bold text-gray-900 mb-6">Latest Posts</h2>
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h2 className="text-3xl font-bold text-gray-900">
+            {isSearching ? `Search Results for "${searchTerm}"` : 'Latest Posts'}
+          </h2>
+          {isSearching && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="rounded-full bg-blue-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+            >
+              Clear Search
+            </button>
+          )}
+        </div>
         {isSearching && searchLoading && (
           <div className="rounded-lg bg-white p-8 text-center shadow-md mb-6">
             <p className="text-gray-600 text-lg">Searching for "{searchTerm}"...</p>
@@ -434,12 +535,111 @@ const Home = () => {
           </div>
         )}
 
-        {isSearching && !searchLoading && displayedPosts.length === 0 ? (
+        {isSearching && !searchLoading && (
+          <div className="mb-8 grid gap-6 lg:grid-cols-3">
+            <div className="rounded-lg bg-white p-6 shadow-md">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Authors</h3>
+                <span className="text-sm text-gray-500">{searchAuthors.length}</span>
+              </div>
+              {searchAuthors.length > 0 ? (
+                <div className="space-y-3">
+                  {searchAuthors.map((author) => (
+                    <Link
+                      key={author._id}
+                      to={`/profile/${author.username}`}
+                      className="flex items-center justify-between rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-500"
+                    >
+                      <div className="flex items-center gap-3">
+                        {author.profilePicture ? (
+                          <img
+                            src={author.profilePicture}
+                            alt={author.username}
+                            className="h-10 w-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white">
+                            {author.username?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium text-gray-900">{author.username}</p>
+                          <p className="text-sm text-gray-500">{author.postCount} posts</p>
+                        </div>
+                      </div>
+                      <span className="text-sm text-blue-600">View</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No matching authors.</p>
+              )}
+            </div>
+
+            <div className="rounded-lg bg-white p-6 shadow-md">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Categories</h3>
+                <span className="text-sm text-gray-500">{searchCategories.length}</span>
+              </div>
+              {searchCategories.length > 0 ? (
+                <div className="space-y-3">
+                  {searchCategories.map((category) => (
+                    <button
+                      key={category._id}
+                      type="button"
+                      onClick={() => updateFilters(category.slug, selectedTag)}
+                      className="flex w-full items-center justify-between rounded-lg border border-gray-200 p-3 text-left transition-colors hover:border-blue-500"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="h-10 w-10 rounded-full"
+                          style={{ backgroundColor: category.color || '#3B82F6' }}
+                        ></div>
+                        <div>
+                          <p className="font-medium text-gray-900">{category.name}</p>
+                          <p className="text-sm text-gray-500">{category.postCount || 0} posts</p>
+                        </div>
+                      </div>
+                      <span className="text-sm text-blue-600">Filter</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No matching categories.</p>
+              )}
+            </div>
+
+            <div className="rounded-lg bg-white p-6 shadow-md">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Tags</h3>
+                <span className="text-sm text-gray-500">{searchTags.length}</span>
+              </div>
+              {searchTags.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {searchTags.map((tag) => (
+                    <button
+                      key={tag._id}
+                      type="button"
+                      onClick={() => updateFilters(selectedCategory, tag.slug)}
+                      className="rounded-full bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+                    >
+                      #{tag.name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No matching tags.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isSearching && !searchLoading && displayedPosts.length === 0 && !hasSupplementarySearchResults ? (
           <div className="rounded-lg bg-white p-8 text-center shadow-md">
             <p className="text-gray-600 text-lg mb-4">No results found for "{searchTerm}".</p>
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
+              onClick={clearSearch}
               className="px-6 py-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
             >
               Clear Search

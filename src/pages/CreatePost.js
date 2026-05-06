@@ -20,7 +20,7 @@ const getMediaType = (mimeType) => {
 };
 
 const DRAFT_STORAGE_KEY = 'blogging-platform-draft';
-const MAX_EXCERPT_LENGTH = 300;
+const MAX_EXCERPT_LENGTH = 100000;
 
 const CreatePost = () => {
   const { user } = useAuth();
@@ -93,8 +93,8 @@ const CreatePost = () => {
     }
 
     if (name === 'excerpt') {
-      // Limit excerpt to 300 characters
-      const limitedValue = value.slice(0, 300);
+      // Limit excerpt to 100000 characters
+      const limitedValue = value.slice(0, 100000);
       setFormData((prev) => ({
         ...prev,
         [name]: limitedValue,
@@ -172,7 +172,7 @@ const CreatePost = () => {
     return {
       title: formData.title.trim(),
       content: formData.content,
-      excerpt: formData.excerpt.trim().slice(0, 300),
+      excerpt: formData.excerpt.trim().slice(0, 100000),
       categoryName,
       tags,
       status,
@@ -360,7 +360,7 @@ const CreatePost = () => {
             <RichTextEditor
               value={formData.content}
               onChange={handleContentChange}
-              className="bg-white min-h-[260px]"
+              className="bg-white min-h-[160px]"
               placeholder="Write your post content here..."
             />
           </div>

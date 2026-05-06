@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { postsAPI } from '../API/api';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalPosts: 0,
     totalViews: 0,
@@ -143,7 +144,19 @@ const Dashboard = () => {
         </div>
         <div className="divide-y divide-gray-200">
           {recentPosts.map((post) => (
-            <div key={post._id} className="px-6 py-4 flex items-center justify-between">
+            <div
+              key={post._id}
+              role="button"
+              tabIndex={0}
+              onClick={() => post.slug && navigate(`/post/${post.slug}`)}
+              onKeyDown={(event) => {
+                if ((event.key === 'Enter' || event.key === ' ') && post.slug) {
+                  event.preventDefault();
+                  navigate(`/post/${post.slug}`);
+                }
+              }}
+              className="px-6 py-4 flex items-center justify-between cursor-pointer transition-colors hover:bg-gray-50"
+            >
               <div className="flex-1">
                 <h3 className="text-lg font-medium text-gray-900">{post.title}</h3>
                 <div className="flex items-center mt-2 text-sm text-gray-600">
@@ -164,6 +177,7 @@ const Dashboard = () => {
                 <span>{post.likes?.length || 0} likes</span>
                 <Link
                   to={`/edit-post/${post._id}`}
+                  onClick={(event) => event.stopPropagation()}
                   className="text-blue-600 hover:text-blue-800"
                 >
                   Edit

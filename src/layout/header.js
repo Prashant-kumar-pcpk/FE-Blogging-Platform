@@ -33,7 +33,7 @@ const Header = () => {
   return (
     <header className="bg-cyan-100 dark:bg-slate-800 shadow-sm border-b border-gray-200 dark:border-slate-700">
       <div className="container mx-auto px-6 py-4">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center font-bold h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
             <img 
