@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const isStrongPassword = (password) =>
+  password.length >= 8
+  && /[A-Z]/.test(password)
+  && /[a-z]/.test(password)
+  && /\d/.test(password);
+
 const ChangePassword = () => {
   const { isAuthenticated, changePassword } = useAuth();
   const [formData, setFormData] = useState({
@@ -35,8 +41,8 @@ const ChangePassword = () => {
       return;
     }
 
-    if (formData.newPassword.length < 6) {
-      setError('New password must be at least 6 characters long.');
+    if (!isStrongPassword(formData.newPassword)) {
+      setError('New password must be at least 8 characters and include uppercase, lowercase, and a number.');
       return;
     }
 
@@ -94,6 +100,9 @@ const ChangePassword = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
+            <p className="mt-2 text-sm text-gray-500">
+              Use at least 8 characters with uppercase, lowercase, and a number.
+            </p>
           </div>
 
           <div className="mb-4">

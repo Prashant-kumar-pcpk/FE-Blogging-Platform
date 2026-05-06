@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI, setAuthToken } from '../API/api';
+import {
+  authAPI,
+  clearSession,
+  getStoredRefreshToken,
+  getStoredToken,
+  persistSession,
+  setAuthToken
+} from '../API/api';
 
 const AuthContext = createContext();
 
@@ -14,7 +21,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(getStoredToken());
 
   useEffect(() => {
     if (token) {
@@ -24,11 +31,28 @@ export const AuthProvider = ({ children }) => {
           const res = await authAPI.getProfile();
           setUser(res.data);
         } catch (error) {
-          console.error('Failed to load user:', error);
-          localStorage.removeItem('token');
-          setToken(null);
-          setUser(null);
-          setAuthToken(null);
+          if (getStoredRefreshToken()) {
+            try {
+              const refreshRes = await authAPI.refreshSession(getStoredRefreshToken());
+              const { token: refreshedToken, refreshToken, user: refreshedUser } = refreshRes.data;
+              persistSession({ token: refreshedToken, refreshToken });
+              setToken(refreshedToken);
+              setAuthToken(refreshedToken);
+              setUser(refreshedUser);
+            } catch (refreshError) {
+              console.error('Failed to refresh user session:', refreshError);
+              clearSession();
+              setToken(null);
+              setUser(null);
+              setAuthToken(null);
+            }
+          } else {
+            console.error('Failed to load user:', error);
+            clearSession();
+            setToken(null);
+            setUser(null);
+            setAuthToken(null);
+          }
         } finally {
           setLoading(false);
         }
@@ -44,9 +68,9 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const res = await authAPI.login({ email, password });
-      const { token: newToken, user: userData } = res.data;
+      const { token: newToken, refreshToken, user: userData } = res.data;
 
-      localStorage.setItem('token', newToken);
+      persistSession({ token: newToken, refreshToken });
       setToken(newToken);
       setAuthToken(newToken);
       setUser(userData);
@@ -63,9 +87,9 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const res = await authAPI.register(userData);
-      const { token: newToken, user: newUser } = res.data;
+      const { token: newToken, refreshToken, user: newUser } = res.data;
 
-      localStorage.setItem('token', newToken);
+      persistSession({ token: newToken, refreshToken });
       setToken(newToken);
       setAuthToken(newToken);
       setUser(newUser);
@@ -80,7 +104,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    clearSession();
     setToken(null);
     setUser(null);
     setAuthToken(null);

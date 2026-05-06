@@ -18,39 +18,43 @@ import Authors from './pages/Authors';
 import NotFound from './pages/NotFound';
 import ChangePassword from './pages/ChangePassword';
 import ForgotPassword from './pages/ForgotPassword';
+import ProtectedRoute from './component/ProtectedRoute';
 
 // Context
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="min-h-screen bg-gradient-to-br from-purple-600 via-yellow-200 to-violet-800">
-          <Header />
-          <main className="container mx-auto px-4 py-8">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/change-password" element={<ChangePassword />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/create-post" element={<CreatePost />} />
-              <Route path="/edit-post/:id" element={<CreatePost />} />
-              <Route path="/post/:slug" element={<PostDetail />} />
-              <Route path="/category/:slug" element={<CategoryPage />} />
-              <Route path="/profile/:username" element={<Profile />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/about" element={<About />} />
-              <Route path="/authors" element={<Authors />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </main>
-          <Footer />
-        </div>
-      </Router>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <div className="min-h-screen bg-gradient-to-br from-purple-600 via-yellow-200 to-violet-800 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+            <Header />
+            <main className="container mx-auto px-4 py-8">
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/create-post" element={<ProtectedRoute><CreatePost /></ProtectedRoute>} />
+                <Route path="/edit-post/:id" element={<ProtectedRoute><CreatePost /></ProtectedRoute>} />
+                <Route path="/post/:slug" element={<PostDetail />} />
+                <Route path="/category/:slug" element={<CategoryPage />} />
+                <Route path="/profile/:username" element={<Profile />} />
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/about" element={<About />} />
+                <Route path="/authors" element={<Authors />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </main>
+            <Footer />
+          </div>
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

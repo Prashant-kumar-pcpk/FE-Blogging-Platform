@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../API/api';
 
+const isStrongPassword = (password) =>
+  password.length >= 8
+  && /[A-Z]/.test(password)
+  && /[a-z]/.test(password)
+  && /\d/.test(password);
+
 const ForgotPassword = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -31,8 +37,8 @@ const ForgotPassword = () => {
       return;
     }
 
-    if (formData.newPassword.length < 6) {
-      setError('New password must be at least 6 characters long.');
+    if (!isStrongPassword(formData.newPassword)) {
+      setError('New password must be at least 8 characters and include uppercase, lowercase, and a number.');
       return;
     }
 
@@ -104,6 +110,9 @@ const ForgotPassword = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
+            <p className="mt-2 text-sm text-gray-500">
+              Use at least 8 characters with uppercase, lowercase, and a number.
+            </p>
           </div>
 
           <div className="mb-6">

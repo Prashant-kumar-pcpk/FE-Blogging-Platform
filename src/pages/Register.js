@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const isStrongPassword = (password) =>
+  password.length >= 8
+  && /[A-Z]/.test(password)
+  && /[a-z]/.test(password)
+  && /\d/.test(password);
+
 const Register = () => {
   const [formData, setFormData] = useState({
     username: '',
@@ -33,9 +39,21 @@ const Register = () => {
       return;
     }
 
+    if (formData.username.trim().length < 3) {
+      setError('Username must be at least 3 characters long.');
+      setLoading(false);
+      return;
+    }
+
+    if (!isStrongPassword(formData.password)) {
+      setError('Password must be at least 8 characters and include uppercase, lowercase, and a number.');
+      setLoading(false);
+      return;
+    }
+
     const result = await register({
-      username: formData.username,
-      email: formData.email,
+      username: formData.username.trim(),
+      email: formData.email.trim(),
       password: formData.password
     });
 
@@ -50,7 +68,7 @@ const Register = () => {
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="bg-white p-8 rounded-lg shadow-md">
+      <div className="bg-white p-8 rounded-2xl shadow-md">
         <h2 className="text-3xl font-bold text-center text-gray-900 mb-8">
           Create Account
         </h2>
@@ -72,7 +90,7 @@ const Register = () => {
               name="username"
               value={formData.username}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -87,7 +105,7 @@ const Register = () => {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -102,9 +120,12 @@ const Register = () => {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
+            <p className="mt-2 text-sm text-gray-500">
+              Use at least 8 characters with uppercase, lowercase, and a number.
+            </p>
           </div>
 
           <div className="mb-6">
@@ -117,7 +138,7 @@ const Register = () => {
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -125,7 +146,7 @@ const Register = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-2xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           >
             {loading ? 'Creating Account...' : 'Create Account'}
           </button>
@@ -134,7 +155,7 @@ const Register = () => {
         <div className="mt-6 text-center">
           <p className="text-gray-600">
             Already have an account?{' '}
-            <Link to="/login" className="text-blue-600 hover:text-blue-800">
+            <Link to="/login" className="text-blue-600 font-semibold hover:text-blue-800">
               Sign in
             </Link>
           </p>

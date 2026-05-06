@@ -42,6 +42,16 @@ const CategoryPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
+      <div className="mb-6">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+        >
+          <span>←</span>
+          Back to Home
+        </Link>
+      </div>
+
       {/* Category Header */}
       <div className="text-center py-12">
         <div
