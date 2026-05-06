@@ -374,7 +374,7 @@ const Home = () => {
           </div>
         )}
         <Link
-          to="/register"
+          to={isAuthenticated ? '/create-post' : '/register'}
           className="bg-white text-blue-600 px-8 py-3 rounded-full font-semibold hover:bg-gray-100 transition-colors"
         >
           Start Writing Today
