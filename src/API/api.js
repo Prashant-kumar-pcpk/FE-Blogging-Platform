@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://be-blogging-platform-1.onrender.com/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:9090/api';
 const TOKEN_STORAGE_KEY = 'token';
 const REFRESH_TOKEN_STORAGE_KEY = 'refreshToken';
 
@@ -166,6 +166,7 @@ const tryPostPaths = async (paths, data, defaultData) => {
 
 export const postsAPI = {
   getAllPosts: (page = 1, limit = 10, filters = {}) => api.get('/posts', { params: { page, limit, ...filters } }),
+  getAuthors: () => api.get('/posts/authors'),
   searchPosts: (query, filters = {}) => api.get('/posts', { params: { q: query, ...filters } }),
   getCategories: () => api.get('/posts/categories'),
   createCategory: (categoryData) => api.post('/posts/categories', categoryData),
@@ -173,6 +174,7 @@ export const postsAPI = {
   deleteCategory: (categoryId) => api.delete(`/posts/categories/${categoryId}`),
   getTags: () => api.get('/posts/tags'),
   getMyPosts: () => api.get('/posts/me'),
+  getMyPostById: (postId) => api.get(`/posts/manage/${postId}`),
   getCategoryPosts: (slug) => api.get(`/posts/category/${slug}`),
   getTagPosts: (slug) => api.get(`/posts/tag/${slug}`),
   getAuthorByUsername: (username) => api.get(`/posts/author/${username}`),
@@ -186,20 +188,53 @@ export const postsAPI = {
     ),
   getPostBySlug: (slug) => api.get(`/posts/${encodeURIComponent(slug)}`),
   createPost: (postData) => api.post('/posts', postData),
+  updatePost: (postId, postData) => api.put(`/posts/manage/${postId}`, postData),
   getComments: (slug) =>
     tryGetPaths([
+      `/comments/post/${encodeURIComponent(slug)}`,
       `/posts/${encodeURIComponent(slug)}/comments`,
       `/posts/comments/${encodeURIComponent(slug)}`
     ]),
   createComment: (slug, commentData) =>
     tryPostPaths([
+      `/comments/post/${encodeURIComponent(slug)}`,
       `/posts/${encodeURIComponent(slug)}/comments`,
       `/posts/comments/${encodeURIComponent(slug)}`
     ], commentData),
-  updateComment: (slug, commentId, commentData) => api.put(`/posts/${encodeURIComponent(slug)}/comments/${commentId}`, commentData),
+  updateComment: (slug, commentId, commentData) =>
+    api.put(`/comments/${commentId}`, commentData).catch((error) => {
+      if (!isNotFound(error)) {
+        throw error;
+      }
+
+      return api.put(`/posts/${encodeURIComponent(slug)}/comments/${commentId}`, commentData);
+    }),
   getCommentsForModeration: (slug) => api.get(`/posts/${encodeURIComponent(slug)}/comments/moderation`),
   moderateComment: (slug, commentId, action) => api.patch(`/posts/${encodeURIComponent(slug)}/comments/${commentId}/moderate`, { action }),
-  deleteComment: (slug, commentId) => api.delete(`/posts/${encodeURIComponent(slug)}/comments/${commentId}`),
+  deleteComment: (slug, commentId) =>
+    api.delete(`/comments/${commentId}`).catch((error) => {
+      if (!isNotFound(error)) {
+        throw error;
+      }
+
+      return api.delete(`/posts/${encodeURIComponent(slug)}/comments/${commentId}`);
+    }),
+  toggleCommentLike: (commentId) =>
+    api.post(`/comments/${commentId}/like`).catch((error) => {
+      if (!isNotFound(error)) {
+        throw error;
+      }
+
+      return { data: { liked: false, likeCount: 0, unsupported: true } };
+    }),
+  replyToComment: (commentId, payload) =>
+    api.post(`/comments/${commentId}/reply`, payload).catch((error) => {
+      if (!isNotFound(error)) {
+        throw error;
+      }
+
+      return { data: { unsupported: true } };
+    }),
   deletePost: (postId) => api.delete(`/posts/${postId}`),
   toggleLike: (slug) =>
     tryPostPaths(

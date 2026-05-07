@@ -10,8 +10,8 @@ const socialLinks = [
 const categoryLinks = [
   { name: 'Technology', slug: 'technology' },
   { name: 'Lifestyle', slug: 'lifestyle' },
-  { name: 'Travel', slug: 'travel' },
-  { name: 'Food', slug: 'food' },
+  { name: 'Courses', slug: 'courses' },
+  { name: 'Life', slug: 'life' },
 ];
 
 const Footer = () => {

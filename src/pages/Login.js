@@ -14,6 +14,7 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [successMessage, setSuccessMessage] = useState(location.state?.message || '');
   const redirectTo = location.state?.from?.pathname || '/dashboard';
 
   const handleChange = (e) => {
@@ -21,12 +22,19 @@ const Login = () => {
       ...formData,
       [e.target.name]: e.target.value
     });
+    if (error) {
+      setError('');
+    }
+    if (successMessage) {
+      setSuccessMessage('');
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccessMessage('');
 
     const result = await login(formData.email, formData.password);
 
@@ -53,6 +61,12 @@ const Login = () => {
           </div>
         )}
 
+        {successMessage && (
+          <div className="mb-4 rounded border border-green-200 bg-green-50 px-4 py-3 text-green-700">
+            {successMessage}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
@@ -64,7 +78,7 @@ const Login = () => {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -79,12 +93,16 @@ const Login = () => {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
             {showForgotPassword && (
               <div className="mt-2 text-right">
-                <Link to="/forgot-password" className="text-sm text-blue-600 hover:text-blue-800">
+                <Link
+                  to="/forgot-password"
+                  state={{ email: formData.email }}
+                  className="text-sm text-blue-600 font-semibold hover:text-red-800"
+                >
                   Forgot password?
                 </Link>
               </div>
@@ -94,7 +112,7 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-2xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           >
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
@@ -103,7 +121,7 @@ const Login = () => {
         <div className="mt-6 text-center">
           <p className="text-gray-600">
             Don't have an account?{' '}
-            <Link to="/register" className="text-blue-600 hover:text-blue-800">
+            <Link to="/register" className="text-blue-600 font-semibold hover:text-red-800">
               Sign up
             </Link>
           </p>

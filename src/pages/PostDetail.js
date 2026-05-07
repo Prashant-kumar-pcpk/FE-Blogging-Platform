@@ -11,6 +11,49 @@ const normalizeTagSlug = (tag) => {
   return (tag.slug || tag.name || '').trim().toLowerCase();
 };
 
+const updateCommentInTree = (commentList, commentId, updater) =>
+  commentList.map((comment) => {
+    if (comment._id === commentId) {
+      return updater(comment);
+    }
+
+    if (Array.isArray(comment.replies) && comment.replies.length > 0) {
+      return {
+        ...comment,
+        replies: updateCommentInTree(comment.replies, commentId, updater)
+      };
+    }
+
+    return comment;
+  });
+
+const removeCommentFromTree = (commentList, commentId) =>
+  commentList
+    .filter((comment) => comment._id !== commentId)
+    .map((comment) => ({
+      ...comment,
+      replies: Array.isArray(comment.replies) ? removeCommentFromTree(comment.replies, commentId) : []
+    }));
+
+const addReplyToTree = (commentList, parentCommentId, reply) =>
+  commentList.map((comment) => {
+    if (comment._id === parentCommentId) {
+      return {
+        ...comment,
+        replies: [reply, ...(Array.isArray(comment.replies) ? comment.replies : [])]
+      };
+    }
+
+    if (Array.isArray(comment.replies) && comment.replies.length > 0) {
+      return {
+        ...comment,
+        replies: addReplyToTree(comment.replies, parentCommentId, reply)
+      };
+    }
+
+    return comment;
+  });
+
 const PostDetail = () => {
   const { slug } = useParams();
   const { user, isAuthenticated } = useAuth();
@@ -25,6 +68,10 @@ const PostDetail = () => {
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
   const [savingCommentId, setSavingCommentId] = useState(null);
+  const [replyingToCommentId, setReplyingToCommentId] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [replySubmittingId, setReplySubmittingId] = useState(null);
+  const [commentLikeLoadingId, setCommentLikeLoadingId] = useState(null);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [authorFollowLoading, setAuthorFollowLoading] = useState(false);
@@ -292,6 +339,18 @@ const PostDetail = () => {
     setEditingCommentText('');
   };
 
+  const handleStartReply = (commentId) => {
+    setReplyingToCommentId(commentId);
+    setReplyText('');
+    setCommentError('');
+    setCommentNotice('');
+  };
+
+  const handleCancelReply = () => {
+    setReplyingToCommentId(null);
+    setReplyText('');
+  };
+
   const handleSaveCommentEdit = async (commentId) => {
     const trimmedContent = editingCommentText.trim();
 
@@ -307,10 +366,10 @@ const PostDetail = () => {
     try {
       const res = await postsAPI.updateComment(slug, commentId, { content: trimmedContent });
       if (res.data.isApproved === false || res.data.isSpam) {
-        setComments((prevComments) => prevComments.filter((comment) => comment._id !== commentId));
+        setComments((prevComments) => removeCommentFromTree(prevComments, commentId));
       } else {
         setComments((prevComments) =>
-          prevComments.map((comment) => comment._id === commentId ? res.data : comment)
+          updateCommentInTree(prevComments, commentId, () => res.data)
         );
       }
       setCommentNotice(res.data.moderationMessage || 'Comment updated successfully.');
@@ -337,7 +396,7 @@ const PostDetail = () => {
     try {
       await postsAPI.deleteComment(slug, commentId);
       setComments((prevComments) =>
-        prevComments.filter((comment) => comment._id !== commentId)
+        removeCommentFromTree(prevComments, commentId)
       );
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to delete comment.';
@@ -345,6 +404,89 @@ const PostDetail = () => {
       setCommentError(message);
     } finally {
       setDeletingCommentId(null);
+    }
+  };
+
+  const handleCommentLike = async (commentId) => {
+    if (!isAuthenticated) {
+      setCommentError('Please log in to like comments.');
+      return;
+    }
+
+    setCommentLikeLoadingId(commentId);
+    setCommentError('');
+
+    try {
+      const res = await postsAPI.toggleCommentLike(commentId);
+
+      if (res.data.unsupported) {
+        setCommentError('Comment likes are not available on the current backend deployment yet.');
+        return;
+      }
+
+      setComments((prevComments) =>
+        updateCommentInTree(prevComments, commentId, (comment) => {
+          const existingLikes = Array.isArray(comment.likes) ? comment.likes : [];
+          const alreadyLiked = existingLikes.some((like) => {
+            if (!like) return false;
+            if (typeof like === 'string') return like === user._id;
+            return like.user?.toString() === user._id?.toString();
+          });
+
+          return {
+            ...comment,
+            likes: res.data.liked
+              ? alreadyLiked
+                ? existingLikes
+                : [...existingLikes, { user: user._id, createdAt: new Date().toISOString() }]
+              : existingLikes.filter((like) => {
+                  if (!like) return false;
+                  if (typeof like === 'string') return like !== user._id;
+                  return like.user?.toString() !== user._id?.toString();
+                })
+          };
+        })
+      );
+    } catch (error) {
+      setCommentError(error.response?.data?.message || error.message || 'Failed to update comment like.');
+    } finally {
+      setCommentLikeLoadingId(null);
+    }
+  };
+
+  const handleReplySubmit = async (parentCommentId) => {
+    const trimmedReply = replyText.trim();
+
+    if (!trimmedReply) {
+      setCommentError('Reply content is required.');
+      return;
+    }
+
+    if (!isAuthenticated) {
+      setCommentError('Please log in to reply to comments.');
+      return;
+    }
+
+    setReplySubmittingId(parentCommentId);
+    setCommentError('');
+    setCommentNotice('');
+
+    try {
+      const res = await postsAPI.replyToComment(parentCommentId, { content: trimmedReply });
+
+      if (res.data.unsupported) {
+        setCommentError('Reply feature is not available on the current backend deployment yet.');
+        return;
+      }
+
+      setComments((prevComments) => addReplyToTree(prevComments, parentCommentId, res.data));
+      setReplyText('');
+      setReplyingToCommentId(null);
+      setCommentNotice('Reply posted successfully.');
+    } catch (error) {
+      setCommentError(error.response?.data?.message || error.message || 'Failed to post reply.');
+    } finally {
+      setReplySubmittingId(null);
     }
   };
 
@@ -400,6 +542,149 @@ const PostDetail = () => {
     } finally {
       setModeratingCommentId(null);
     }
+  };
+
+  const renderComment = (comment, isReply = false) => {
+    const likedByCurrentUser = Array.isArray(comment.likes)
+      && comment.likes.some((like) => {
+        if (!like) return false;
+        if (typeof like === 'string') return like === user?._id;
+        return like.user?.toString() === user?._id?.toString();
+      });
+
+    return (
+      <div
+        key={comment._id}
+        className={`rounded-lg ${isReply ? 'border border-gray-200 bg-white p-4' : 'bg-gray-50 p-4'}`}
+      >
+        <div className="flex items-center mb-2">
+          {comment.author?.profilePicture ? (
+            <img
+              src={comment.author.profilePicture}
+              alt={comment.author.username}
+              className="mr-3 h-8 w-8 rounded-full object-cover"
+            />
+          ) : (
+            <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-semibold text-gray-700">
+              {comment.author?.username?.charAt(0)?.toUpperCase() || '?'}
+            </div>
+          )}
+          <div>
+            <span className="font-medium text-gray-900">{comment.author?.username || 'Unknown'}</span>
+            <span className="text-sm text-gray-600 ml-2">
+              {new Date(comment.createdAt).toLocaleDateString()}
+            </span>
+          </div>
+        </div>
+
+        {editingCommentId === comment._id ? (
+          <div className="space-y-3">
+            <textarea
+              value={editingCommentText}
+              onChange={(e) => setEditingCommentText(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex gap-3 text-sm">
+              <button
+                type="button"
+                onClick={() => handleSaveCommentEdit(comment._id)}
+                disabled={savingCommentId === comment._id}
+                className="rounded-full bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {savingCommentId === comment._id ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelCommentEdit}
+                className="rounded-full border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-black">
+            {comment.content}
+            {comment.edited && <span className="ml-2 text-xs text-gray-500">(edited)</span>}
+          </p>
+        )}
+
+        <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-600">
+          <button
+            type="button"
+            onClick={() => handleCommentLike(comment._id)}
+            disabled={commentLikeLoadingId === comment._id}
+            className={`${likedByCurrentUser ? 'text-blue-700' : 'hover:text-blue-600'} disabled:opacity-50`}
+          >
+            {commentLikeLoadingId === comment._id ? 'Updating...' : `Like (${comment.likes?.length || 0})`}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleStartReply(comment._id)}
+            className="hover:text-blue-600"
+          >
+            Reply ({comment.replies?.length || 0})
+          </button>
+          {user?._id === comment.author?._id && (
+            <button
+              type="button"
+              onClick={() => handleStartCommentEdit(comment)}
+              className="hover:text-blue-600"
+            >
+              Edit
+            </button>
+          )}
+          {(user?._id === comment.author?._id || canModerateComments) && (
+            <button
+              type="button"
+              onClick={() => handleDeleteComment(comment._id)}
+              disabled={deletingCommentId === comment._id}
+              className="hover:text-red-600 disabled:opacity-50"
+            >
+              {deletingCommentId === comment._id ? 'Deleting...' : 'Delete'}
+            </button>
+          )}
+        </div>
+
+        {replyingToCommentId === comment._id && (
+          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+            <textarea
+              value={replyText}
+              onChange={(event) => setReplyText(event.target.value)}
+              rows={3}
+              maxLength={1000}
+              placeholder="Write a reply..."
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="mt-3 flex gap-3">
+              <button
+                type="button"
+                onClick={() => handleReplySubmit(comment._id)}
+                disabled={replySubmittingId === comment._id}
+                className="rounded-full bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {replySubmittingId === comment._id ? 'Replying...' : 'Post Reply'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelReply}
+                className="rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {Array.isArray(comment.replies) && comment.replies.length > 0 && (
+          <div className="mt-4 space-y-3 pl-4">
+            {comment.replies.map((reply) => renderComment(reply, true))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (loading) {
@@ -576,12 +861,12 @@ const PostDetail = () => {
           <h2 className="mb-4 text-2xl font-bold text-gray-900">Media</h2>
           <div className="space-y-6">
             {post.media.map((item, index) => (
-              <div key={`${item.name || item.type}-${index}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4">
+              <div key={`${item.name || item.type}-${index}`} className="overflow-hidden text-black rounded-xl  border-gray-200 bg-transparent p-4">
                 {item.type === 'image' && (
                   <img
                     src={item.url}
                     alt={item.name || `Post media ${index + 1}`}
-                    className="max-h-[32rem] w-full rounded-lg object-contain"
+                    className="max-h-[32rem] w-full rounded-lg "
                   />
                 )}
 
@@ -623,6 +908,7 @@ const PostDetail = () => {
                 <p className="text-gray-600 mb-3 line-clamp-3">{relatedPost.excerpt}</p>
                 <div className="flex items-center justify-between text-sm text-gray-500">
                   <span>{relatedPost.category?.name || 'General'}</span>
+                  
                   <span>{relatedPost.views || 0} views</span>
                 </div>
               </Link>
@@ -632,7 +918,7 @@ const PostDetail = () => {
       )}
 
       {/* Tags */}
-      <div className="flex flex-wrap gap-2 mb-12">
+      {/* <div className="flex flex-wrap gap-2 mb-12">
         {normalizedTags.map((tag, index) => (
           <span
             key={`${tag.slug}-${index}`}
@@ -641,7 +927,7 @@ const PostDetail = () => {
             #{tag.name}
           </span>
         ))}
-      </div>
+      </div> */}
 
       {/* Comments Section */}
       <section>
@@ -657,7 +943,7 @@ const PostDetail = () => {
             placeholder="Write a comment..."
             rows={4}
             maxLength={1000}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="min-w-full px-3 py-2 border border-gray-300 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
           {commentError && (
@@ -680,80 +966,8 @@ const PostDetail = () => {
         </form>
 
         {/* Comments List */}
-        <div className="space-y-6">
-          {comments.map((comment) => (
-            <div key={comment._id} className="bg-gray-50 p-4 rounded-lg">
-              <div className="flex items-center mb-2">
-                <div className="w-8 h-8 bg-gray-300 rounded-full mr-3"></div>
-                <div>
-                  <span className="font-medium text-gray-900">{comment.author.username}</span>
-                  <span className="text-sm text-gray-600 ml-2">
-                    {new Date(comment.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-              {editingCommentId === comment._id ? (
-                <div className="space-y-3">
-                  <textarea
-                    value={editingCommentText}
-                    onChange={(e) => setEditingCommentText(e.target.value)}
-                    rows={3}
-                    maxLength={1000}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="flex gap-3 text-sm">
-                    <button
-                      type="button"
-                      onClick={() => handleSaveCommentEdit(comment._id)}
-                      disabled={savingCommentId === comment._id}
-                      className="rounded-full bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {savingCommentId === comment._id ? 'Saving...' : 'Save'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCancelCommentEdit}
-                      className="rounded-full border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-100"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-black">
-                  {comment.content}
-                  {comment.edited && <span className="ml-2 text-xs text-gray-500">(edited)</span>}
-                </p>
-              )}
-              <div className="flex items-center mt-2 text-sm text-gray-600">
-                <button className="hover:text-blue-600 mr-4">
-                  Like ({comment.likes?.length || 0})
-                </button>
-                <button className="hover:text-blue-600 mr-4">
-                  Reply
-                </button>
-                {user?._id === comment.author?._id && (
-                  <button
-                    type="button"
-                    onClick={() => handleStartCommentEdit(comment)}
-                    className="hover:text-blue-600 mr-4"
-                  >
-                    Edit
-                  </button>
-                )}
-                {(user?._id === comment.author?._id || canModerateComments) && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteComment(comment._id)}
-                    disabled={deletingCommentId === comment._id}
-                    className="hover:text-red-600 disabled:opacity-50"
-                  >
-                    {deletingCommentId === comment._id ? 'Deleting...' : 'Delete'}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+        <div className="space-y-6 ">
+          {comments.map((comment) => renderComment(comment))}
         </div>
       </section>
 

@@ -38,26 +38,57 @@ const CreatePost = () => {
   });
   const [customCategory, setCustomCategory] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState('');
   const [categories, setCategories] = useState([]);
   const [mediaFiles, setMediaFiles] = useState([]);
 
   useEffect(() => {
-    fetchCategories();
+    const initializeEditor = async () => {
+      setInitializing(true);
+      setError('');
 
-    if (!isEditing) {
-      const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
-      if (savedDraft) {
-        try {
-          const parsed = JSON.parse(savedDraft);
-          setFormData((prev) => ({ ...prev, ...parsed.formData }));
-          setCustomCategory(parsed.customCategory || '');
-          setMediaFiles(parsed.mediaFiles || []);
-        } catch (err) {
-          console.error('Failed to load saved draft:', err);
+      try {
+        await fetchCategories();
+
+        if (isEditing && id) {
+          const res = await postsAPI.getMyPostById(id);
+          const post = res.data;
+
+          setFormData({
+            title: post.title || '',
+            content: post.content || '',
+            excerpt: post.excerpt || '',
+            categoryName: post.category?.name || '',
+            tags: Array.isArray(post.tags)
+              ? post.tags.map((tag) => tag.name || tag.slug || '').filter(Boolean).join(', ')
+              : '',
+            status: post.status || 'draft'
+          });
+          setCustomCategory('');
+          setMediaFiles(Array.isArray(post.media) ? post.media : []);
+        } else {
+          const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+          if (savedDraft) {
+            try {
+              const parsed = JSON.parse(savedDraft);
+              setFormData((prev) => ({ ...prev, ...parsed.formData }));
+              setCustomCategory(parsed.customCategory || '');
+              setMediaFiles(parsed.mediaFiles || []);
+            } catch (err) {
+              console.error('Failed to load saved draft:', err);
+            }
+          }
         }
+      } catch (initError) {
+        console.error('Failed to initialize post editor:', initError);
+        setError(initError.response?.data?.message || initError.message || 'Failed to load post data.');
+      } finally {
+        setInitializing(false);
       }
-    }
+    };
+
+    initializeEditor();
   }, [id, isEditing]);
 
   useEffect(() => {
@@ -73,8 +104,10 @@ const CreatePost = () => {
     try {
       const res = await postsAPI.getCategories();
       setCategories(res.data);
+      return res.data;
     } catch (error) {
       console.error('Failed to load categories:', error);
+      throw error;
     }
   };
 
@@ -211,7 +244,11 @@ const CreatePost = () => {
     setLoading(true);
 
     try {
-      await postsAPI.createPost(payload);
+      if (isEditing && id) {
+        await postsAPI.updatePost(id, payload);
+      } else {
+        await postsAPI.createPost(payload);
+      }
       clearSavedDraft();
       navigate('/dashboard');
     } catch (error) {
@@ -236,6 +273,14 @@ const CreatePost = () => {
     return (
       <div className="text-center py-12">
         <p className="text-gray-600">Please log in to create posts.</p>
+      </div>
+    );
+  }
+
+  if (initializing) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }

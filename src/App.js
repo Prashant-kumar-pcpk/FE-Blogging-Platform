@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
+import 'quill/dist/quill.snow.css';
 
 // Components
 import Header from './layout/header';
@@ -30,8 +31,14 @@ function App() {
       <AuthProvider>
         <Router>
           <div className="min-h-screen bg-gradient-to-br from-purple-600 via-yellow-200 to-violet-800 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-gray-900"
+            >
+              Skip to main content
+            </a>
             <Header />
-            <main className="container mx-auto px-8 py-8">
+            <main id="main-content" className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />

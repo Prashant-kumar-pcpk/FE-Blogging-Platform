@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { authAPI } from '../API/api';
 
 const isStrongPassword = (password) =>
@@ -10,8 +10,9 @@ const isStrongPassword = (password) =>
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [formData, setFormData] = useState({
-    email: '',
+    email: location.state?.email || '',
     newPassword: '',
     confirmPassword: ''
   });
@@ -51,7 +52,10 @@ const ForgotPassword = () => {
       });
 
       setSuccessMessage(res.data.message);
-      setTimeout(() => navigate('/login'), 1200);
+      setTimeout(() => navigate('/login', {
+        replace: true,
+        state: { message: res.data.message }
+      }), 1200);
     } catch (resetError) {
       setError(resetError.response?.data?.message || 'Unable to reset password.');
     } finally {
@@ -92,7 +96,7 @@ const ForgotPassword = () => {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -107,7 +111,7 @@ const ForgotPassword = () => {
               name="newPassword"
               value={formData.newPassword}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
             <p className="mt-2 text-sm text-gray-500">
@@ -125,7 +129,7 @@ const ForgotPassword = () => {
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -133,14 +137,14 @@ const ForgotPassword = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           >
             {loading ? 'Resetting...' : 'Reset Password'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
-          <Link to="/login" className="text-blue-600 hover:text-blue-800">
+          <Link to="/login" className= " font-semibold text-blue-600 hover:text-red-800">
             Back to Sign In
           </Link>
         </div>
