@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { postsAPI } from '../API/api';
@@ -106,7 +106,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadUserPosts = async () => {
+  const loadUserPosts = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
@@ -124,7 +124,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     document.title = 'Dashboard | Prashant Dairies';
@@ -132,7 +132,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     loadUserPosts();
-  }, [user]);
+  }, [loadUserPosts]);
 
   const stats = useMemo(
     () => ({
