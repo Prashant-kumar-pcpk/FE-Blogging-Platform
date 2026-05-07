@@ -10,6 +10,20 @@ import {
 
 const AuthContext = createContext();
 
+const normalizeAuthUser = (userData) => {
+  if (!userData) {
+    return null;
+  }
+
+  const normalizedId = userData._id || userData.id || null;
+
+  return {
+    ...userData,
+    _id: normalizedId,
+    id: normalizedId
+  };
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -29,7 +43,7 @@ export const AuthProvider = ({ children }) => {
       const loadUser = async () => {
         try {
           const res = await authAPI.getProfile();
-          setUser(res.data);
+          setUser(normalizeAuthUser(res.data));
         } catch (error) {
           if (getStoredRefreshToken()) {
             try {
@@ -38,7 +52,7 @@ export const AuthProvider = ({ children }) => {
               persistSession({ token: refreshedToken, refreshToken });
               setToken(refreshedToken);
               setAuthToken(refreshedToken);
-              setUser(refreshedUser);
+              setUser(normalizeAuthUser(refreshedUser));
             } catch (refreshError) {
               console.error('Failed to refresh user session:', refreshError);
               clearSession();
@@ -73,7 +87,7 @@ export const AuthProvider = ({ children }) => {
       persistSession({ token: newToken, refreshToken });
       setToken(newToken);
       setAuthToken(newToken);
-      setUser(userData);
+      setUser(normalizeAuthUser(userData));
 
       return { success: true };
     } catch (error) {
@@ -92,7 +106,7 @@ export const AuthProvider = ({ children }) => {
       persistSession({ token: newToken, refreshToken });
       setToken(newToken);
       setAuthToken(newToken);
-      setUser(newUser);
+      setUser(normalizeAuthUser(newUser));
 
       return { success: true };
     } catch (error) {
@@ -113,7 +127,7 @@ export const AuthProvider = ({ children }) => {
   const updateProfile = async (profileData) => {
     try {
       const res = await authAPI.updateProfile(profileData);
-      setUser(res.data.user);
+      setUser(normalizeAuthUser(res.data.user));
       return { success: true };
     } catch (error) {
       return {
